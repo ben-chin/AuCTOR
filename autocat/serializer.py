@@ -1,4 +1,4 @@
-from sklearn.externals import joblib
+import joblib
 
 
 def save(categorizer, filename):

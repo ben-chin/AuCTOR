@@ -77,4 +77,8 @@ setup(
         'scikit-learn==0.17.1',
     ],
 
+    dependency_links=[
+        'git+https://github.com/joblib/joblib.git@18f9b4ce95e8788cc0e9b5106fc22573d768c44b',
+    ],
+
 )

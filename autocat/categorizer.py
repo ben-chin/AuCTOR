@@ -1,26 +1,24 @@
 from sklearn.multiclass import OneVsRestClassifier
-from sklearn.feature_extraction.text import TfidfVectorizer
-from nltk.tokenize import TweetTokenizer
-from nltk.stem.porter import PorterStemmer
+from sklearn.feature_extraction.text import HashingVectorizer, TfidfTransformer
+from sklearn.feature_selection import SelectFromModel
+from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.svm import LinearSVC
 
+from tokenize import tokenize
 from labeller import DocumentLabeller
 from rp.wiki import WikiRPBuilder
-# from rp import build_rps
-
-
-def tokenize(tweet):
-    tknzr = TweetTokenizer(strip_handles=True)
-    stemmer = PorterStemmer()
-    tokens = tknzr.tokenize(tweet)
-    return [stemmer.stem(t) for t in tokens]
 
 
 class AutoCategorizer:
 
     def __init__(self, categories, docs, classifier, cached_rps=None,
-                 cached_vocab=None, cached_d_v=None, cached_r_v=None):
-        self.categories = categories
+                 reduce_features=False):
         self.docs = docs
+        self.categories = categories
+        self.reduce_features = reduce_features
+        self.training_docs = None
+
+        # Get Representative Profiles
         if cached_rps is not None:
             print '> Using cached rps'
             self.rps = cached_rps
@@ -29,66 +27,51 @@ class AutoCategorizer:
             rp_builder = WikiRPBuilder(categories)
             self.rps = rp_builder.build_rps()
 
-        if cached_vocab is not None:
-            print '> Using cached vocab'
-            self.vocab = cached_vocab
-        else:
-            print '> Collating vocab'
-            self.vocab = self.collate_vocab([docs, self.rps])
+        self.categorizer = self.build_categorizer(classifier)
 
-        if cached_d_v is not None:
-            print '> Using cached docs vectorizer'
-            self.docs_vectorizer = cached_d_v
-            self.docs_features = self.docs_vectorizer.transform(self.docs)
-        else:
-            print '> Building docs feature matrices'
-            self.docs_vectorizer = self.build_vectorizer(self.vocab)
-            self.docs_features = self.docs_vectorizer.fit_transform(self.docs)
-
-        if cached_r_v is not None:
-            print '> Using cached rps vectorizer'
-            self.rps_vectorizer = cached_r_v
-            self.rps_features = self.rps_vectorizer.transform(self.rps)
-        else:
-            print '> Building rps feature matrices'
-            self.rps_vectorizer = self.build_vectorizer(self.vocab)
-            self.rps_features = self.rps_vectorizer.fit_transform(self.rps)
-
-        self.classifier = classifier
-        self.categorizer = self.build_categorizer()
-
-    def build_categorizer(self):
+    def build_categorizer(self, classifier):
+        print '> Init DocumentLabeller'
+        dl = DocumentLabeller(self.docs, self.rps)
         print '> Labelling documents using FACT'
-        dl = DocumentLabeller(self.docs_features, self.rps_features)
-        training_data, targets = dl.label()
-        print '> {}, {}'.format(training_data.shape, targets.shape)
-
-        self.dl = dl
+        docs, targets = dl.label()
+        self.training_docs = docs
+        print '> {}, {}'.format(len(self.training_docs), targets.shape)
 
         print '> Training classifier using labelled docs'
-        categorizer = OneVsRestClassifier(self.classifier)
-        categorizer.fit(training_data, targets)
+        features = FeatureUnion([
+            (
+                'bag_of_words', Pipeline([
+                    ('count', self.build_vectorizer()),
+                    ('tfidf', TfidfTransformer()),
+                    # ('dim_reduce', TruncatedSVD(
+                    #     n_components=60,
+                    #     random_state=42
+                    # )),
+                ])
+            ),
+        ])
+
+        categorizer = OneVsRestClassifier(
+            Pipeline([
+                ('features', features),
+                ('selection', SelectFromModel(classifier, threshold=0.2)),
+                ('classifier', LinearSVC()),
+            ])
+        )
+
+        categorizer.fit(self.training_docs, targets)
         return categorizer
 
-    def collate_vocab(self, all_docs):
-        vocab = set()
-
-        for docs in all_docs:
-            for doc in docs:
-                for token in tokenize(doc):
-                    vocab.add(token)
-
-        return vocab
-
-    def build_vectorizer(self, vocab):
-        tfidf = TfidfVectorizer(
+    def build_vectorizer(self):
+        return HashingVectorizer(
             tokenizer=tokenize,
+            ngram_range=(1, 2),  # doesn't make sense for rps
             stop_words='english',
             decode_error='ignore',
-            vocabulary=vocab
         )
-        return tfidf
+
+    def get_training_docs(self):
+        return self.training_docs
 
     def classify(self, doc):
-        feature_vec = self.docs_vectorizer.transform([doc])
-        return self.categorizer.predict(feature_vec)
+        return self.categorizer.predict([doc])
