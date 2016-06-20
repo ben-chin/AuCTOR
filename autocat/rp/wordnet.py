@@ -36,7 +36,7 @@ def get_derivationally_related_forms(concept):
     drfs = []
     for l in concept.lemmas():
         drfs.extend(l.derivationally_related_forms())
-    return drfs
+    return [d.synset() for d in drfs]
 
 
 class WordNetRPBuilder(BaseRPBuilder):
@@ -67,7 +67,6 @@ class WordNetRPBuilder(BaseRPBuilder):
             potential_senses = wn.synsets(f)
             senses = self.extract_best_senses(f, potential_senses)
             concepts.extend(senses)
-        print concepts
         return concepts
 
     def extract_best_senses(self, word, senses):
@@ -103,9 +102,9 @@ class WordNetRPBuilder(BaseRPBuilder):
         return words
 
     def flatten_expansion(self, profile):
-        return self.get_synsets_words([profile.concept])
-        + self.get_synsets_words(profile.hypernyms)
-        + self.get_synsets_words(profile.hyponyms)
-        + self.get_synsets_words(profile.meronyms)
-        + self.get_synsets_words(profile.holonyms)
-        + self.get_synsets_words(profile.drfs)
+        return self.get_synsets_words([profile.concept]) \
+            + self.get_synsets_words(profile.hypernyms) \
+            + self.get_synsets_words(profile.hyponyms) \
+            + self.get_synsets_words(profile.meronyms) \
+            + self.get_synsets_words(profile.holonyms) \
+            + self.get_synsets_words(profile.drfs)

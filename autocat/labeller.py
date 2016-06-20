@@ -46,7 +46,6 @@ class DocumentLabeller:
 
         return (docs, label_vectors)
 
-    # TODO: rp tfidf should be computed with just the rps as the document set
     def make_features(self):
         features = Pipeline([
             ('count', self.build_vectorizer()),
@@ -85,7 +84,7 @@ class DocumentLabeller:
     def build_vectorizer(self):
         return HashingVectorizer(
             tokenizer=tokenize,
-            ngram_range=(1, 2),  # doesn't make sense for rps
+            # ngram_range=(1, 2),  # doesn't make sense for rps
             stop_words='english',
-            decode_error='ignore'
+            decode_error='ignore',
         )

@@ -14,7 +14,7 @@ from nltk.tokenize import WordPunctTokenizer
 BASE_URL = 'https://en.wikipedia.org/w/api.php'
 PAGE_NS = 0
 CATEGORY_NS = 14
-WORD_COUNT = 200
+WORD_COUNT = 500
 
 SearchResult = namedtuple('SearchResult', 'title summary url')
 
@@ -34,7 +34,7 @@ class WikiRPBuilder(BaseRPBuilder):
             page = Page(self.wiki, p.title)
             wiki_cat = Category(self.wiki, page.getCategories()[0])
         # Only take first category for now, relies on wiki search being good
-        related_concepts = self.get_category_members(wiki_cat.title, depth=2)
+        related_concepts = self.get_category_members(wiki_cat.title, depth=3)
         counter = self.analyse_category(related_concepts)
         words = map(list, zip(*counter.most_common(WORD_COUNT)))[0]
         return words
